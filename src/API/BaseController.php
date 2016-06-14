@@ -1,6 +1,8 @@
 <?php
 namespace PhalconRest\API;
 
+use Phalcon\DI;
+use Phalcon\DI\Injectable;
 use \PhalconRest\Util\HTTPException;
 
 /**
@@ -12,20 +14,20 @@ use \PhalconRest\Util\HTTPException;
  * Responsible for handling various REST requests
  * Will load the correct model and entity and perform the correct action
  */
-class BaseController extends \Phalcon\DI\Injectable
+class BaseController extends Injectable
 {
 
     /**
      * Store the default entity here
      *
-     * @var \PhalconRest\Entities
+     * @var \PhalconRest\API\Entity
      */
     protected $entity = FALSE;
 
     /**
      * Store the default model here
      *
-     * @var \PhalconRest\Models
+     * @var \PhalconRest\API\BaseModel
      */
     protected $model = FALSE;
 
@@ -51,11 +53,10 @@ class BaseController extends \Phalcon\DI\Injectable
      * @param boolean $parseQueryString
      *            true Can be set to false if a controller needs to be called
      *            from a different controller, bypassing the $allowedFields parse
-     * @return void
      */
     public function __construct($parseQueryString = true)
     {
-        $di = \Phalcon\DI::getDefault();
+        $di = DI::getDefault();
         $this->setDI($di);
         // initialize entity and set to class property
         $this->getEntity();
@@ -65,7 +66,8 @@ class BaseController extends \Phalcon\DI\Injectable
      * Load a default model unless one is already in place
      * return the currently loaded model
      *
-     * @return \PhalconRest\Models
+     * @param string|bool $modelNameString
+     * @return BaseModel
      */
     public function getModel($modelNameString = false)
     {
@@ -86,14 +88,14 @@ class BaseController extends \Phalcon\DI\Injectable
      * Load a default entity unless one is already in place
      * return the currentlyloaded entity
      *
-     * @return \PhalconRest\Entities
+     * @return \PhalconRest\API\Entity
      */
     public function getEntity()
     {
         if ($this->entity == false) {
             $config = $this->getDI()->get('config');
             $model = $this->getModel();
-            $searchHelper = new \PhalconRest\API\SearchHelper();
+            $searchHelper = new SearchHelper();
             $entity = $config['namespaces']['entities'] . $this->getControllerName('singular') . 'Entity';
             $this->entity = new $entity($model, $searchHelper);
         }
@@ -104,12 +106,11 @@ class BaseController extends \Phalcon\DI\Injectable
      * get the controllers singular or plural name
      *
      * @param string $type            
-     * @return unknown
+     * @return string|bool
      */
     public function getControllerName($type = 'plural')
     {
         if ($type == 'singular') {
-            
             // auto calc if not already set
             if ($this->singularName == NULL) {
                 $className = get_called_class();
@@ -147,7 +148,9 @@ class BaseController extends \Phalcon\DI\Injectable
      * run a limited query for one record
      * bypass nearly all normal search params and just search by the primary key
      *
-     * @param int $id            
+     * @param int $id
+     * @return array
+     * @throws HTTPException
      */
     public function getOne($id)
     {
@@ -155,7 +158,7 @@ class BaseController extends \Phalcon\DI\Injectable
         
         if ($search_result == false) {
             // This is bad. Throw a 500. Responses should always be objects.
-            throw new HTTPException("Resource not available.", 404, array(
+            throw new HTTPException('Resource not available.', 404, array(
                 'dev' => 'The resource you requested is not available.',
                 'code' => '43758093745021'
             ));
@@ -167,8 +170,8 @@ class BaseController extends \Phalcon\DI\Injectable
     /**
      * Attempt to save a record from POST
      * This should be saving a new record
-     *
      * @return mixed return valid Apache code, could be an error, maybe not
+     * @throws HTTPException
      */
     public function post()
     {
@@ -191,7 +194,7 @@ class BaseController extends \Phalcon\DI\Injectable
         
         if ($search_result == false) {
             // This is bad. Throw a 500. Responses should always be objects.
-            throw new HTTPException("There was an error retreiving the newly created record.", 500, array(
+            throw new HTTPException('There was an error retrieving the newly created record.', 500, array(
                 'dev' => 'The resource you requested is not available after it was just created',
                 'code' => '1238510381861'
             ));
@@ -217,8 +220,9 @@ class BaseController extends \Phalcon\DI\Injectable
     /**
      * read in a resource and update it
      *
-     * @param int $id            
-     * @return multitype:string
+     * @param int $id
+     * @return array
+     * @throws HTTPException
      */
     public function put($id)
     {
@@ -259,10 +263,9 @@ class BaseController extends \Phalcon\DI\Injectable
      * hook to be run before a controller calls it's save action
      * make it easier to extend default save logic
      *
-     * @param $object the
-     *            data submitted to the server
-     * @param int|null $id
-     *            the pkid of the record to be updated, otherwise null on inserts
+     * @param mixed $object the data submitted to the server
+     * @param int|null $id the pkid of the record to be updated, otherwise null on inserts
+     * @return mixed
      */
     public function beforeSave($object, $id = null)
     {
@@ -274,10 +277,8 @@ class BaseController extends \Phalcon\DI\Injectable
      * hook to be run after a controller completes it's save logic
      * make it easier to extend default save logic
      *
-     * @param $object the
-     *            data submitted to the server (not a model)
-     * @param int|null $id
-     *            the pkid of the record to be updated or inserted
+     * @param mixed $object the data submitted to the server (not a model)
+     * @param int|null $id the pkid of the record to be updated or inserted
      */
     public function afterSave($object, $id)
     {
@@ -288,8 +289,7 @@ class BaseController extends \Phalcon\DI\Injectable
      * hook to be run before a controller performs delete logic
      * make it easier to extend default delete logic
      *
-     * @param int $id
-     *            the record to be deleted
+     * @param int $id the record to be deleted
      */
     public function beforeDelete($id)
     {
@@ -300,8 +300,7 @@ class BaseController extends \Phalcon\DI\Injectable
      * hook to be run after a controller performs delete logic
      * make it easier to extend default delete logic
      *
-     * @param int $id
-     *            the id of the record that was just removed
+     * @param int $id the id of the record that was just removed
      */
     public function afterDelete($id)
     {
@@ -310,8 +309,8 @@ class BaseController extends \Phalcon\DI\Injectable
 
     /**
      *
-     * @param mixed $id            
-     * @return multitype:string
+     * @param int $id
+     * @return array
      */
     public function patch($id)
     {
@@ -369,9 +368,9 @@ class BaseController extends \Phalcon\DI\Injectable
      * that logic should probably sit in the JSONReponse object but I'm not sure how to infer the controllers name from there
      * maybe check in bootstrap...$app->after() to see if you can access the current controller?
      *
-     * @param array $recordsResult
-     *            records to format as return output
+     * @param array $recordsResult records to format as return output
      * @return array Output array. If there are records (even 1), every record will be an array ex: array(array('id'=>1),array('id'=>2))
+     * @throws HTTPException
      */
     protected function respond($recordsResult)
     {
@@ -389,15 +388,15 @@ class BaseController extends \Phalcon\DI\Injectable
             // No records returned, so return an empty array
             case 0:
                 return array();
-                break;
+
             // return single record within an array
             case 1:
                 if (isset($recordsResult['meta'])) {
                     return $recordsResult;
                 } else {
-                    $recordsResult[0];
+                    $recordsResult[0]; //FIXME: sounds like a bug? this should be returned?
                 }
-            
+
             default:
                 return $recordsResult;
                 break;
